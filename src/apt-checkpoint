@@ -8,6 +8,8 @@ from optparse import OptionParser	# To handle command line args
 import gzip 						# To read Packages.gz
 import httplib, urlparse			# To download files
 import tempfile						# To handle temp files
+import re							# Regular expressions
+import string						# string handling
 
 # Configuration Settings
 CACHE = '/var/cache/apt/checkpoint'
@@ -51,7 +53,7 @@ class PackagesGz:
 						if len(value) > 0:
 							if (record.find(':') >= 0 and record.find(':') < record.find('\n')):
 								# done with this key:value pair
-								Package[key] = value
+								Package[key.strip()] = value.strip()
 								key = ''
 								value = ''
 								continue
@@ -61,7 +63,7 @@ class PackagesGz:
 							record = record[idx+1:]
 							if len(record) == 0:
 								# Last key:value pair of record
-								Package[key] = value
+								Package[key.strip()] = value.strip()
 								key = ''
 								value = ''
 								Packages.append(Package)
@@ -105,22 +107,51 @@ def getpackage(package):
 def findpackage(pkg):
 	deb = ''
 	if len(pkg.FileName) > 0:
-		print pkg.FileName
 		# First, check to see if the package is in the local archive
 		deb = ARCHIVE + os.sep + pkg.FileName.split('/')[-1:][0]
 		if(not os.path.exists(deb)):
 			deb = ''
-		# Next, check for apt-mirror
+		else:
+			pkg.FileName = deb
+		# TODO: Next, check for apt-mirror or other local alternatives
+		
 		# Last, download the needed packages from snapshot.debian.net
-		# Download Packages.gz
-		print pkg.FileName
-
-	pass
+		if len(deb) == 0:
+			#http://snapshot.debian.net/archive/pool/i/imagemagick/binary-i386/Packages.gz
+			name = re.match('pool/\w+/\w/(.+)/', pkg.FileName).group(1)
+			Packages = '%spool/%s/%s/binary-%s/Packages.gz' % (SNAPSHOT, name[0:1], name, apt_pkg.CPU)
+			file = HttpDownload(Packages)
+		
+			# Download Packages.gz
+			pkgz = PackagesGz(file)
+			
+			for p in pkgz.Packages:
+				if p['Package'] == pkg.Name:
+					if p['Version'] == pkg.Version:
+						if p['Architecture'] in (apt_pkg.CPU, 'any', 'all'):
+							deb = '%s%s' % (SNAPSHOT, p['Filename'])
+							break
+						else:
+							print pkg.Name, ":", p['Architecture']
+			# Remove temp file
+			os.remove(file)
+			if len(deb) > 0:
+				# We found a package on snapshot.debian.net,
+				# so download it to the local archive/ cache
+				
+				# Get the local file name
+				localdeb = '%s/%s' % (ARCHIVE, deb[deb.rfind('/'):])
+				HttpDownload(deb, localdeb)
+				pkg.FileName = localdeb
+				pass
+	if len(deb) > 0:
+		return pkg
+	return pkg
 
 def removepackage(pkg):
-	print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r %s' % (pkg.Name))
+	print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r "%s"' % (pkg.Name))
 def installpackage(deb):
-	print commands.getoutput('dpkg -i %s' % (deb))
+	print commands.getoutput('dpkg --force-depends,depends-version -i "%s"' % (deb.FileName))
 
 def initialize():
 	global cache, packages
@@ -130,15 +161,13 @@ def initialize():
 	if not os.path.exists(CACHE):
 		os.mkdir(CACHE)
 
-def HttpDownload(url):
-	data = ''
-	u = urlparse.urlparse(url)	
-	conn = httplib.HTTPConnection(u[1])
-	conn.request('GET', u[2])
-	resp = conn.getresponse()
-	if resp.Status == 200:
-		data = resp.read()
-	return data
+def HttpDownload(url, dest=None):
+	if not dest:
+		dest = tempfile.mkstemp()[1]
+	print "Downloading", url, "to", dest
+	#commands.getoutput('wget -O "%s" "%s"' % (dest, url))
+	os.popen('wget -O "%s" "%s"' % (dest, url))
+	return dest
 	
 # Get a list of available checkpoints in the CACHE
 def getCheckpoints():
@@ -201,11 +230,15 @@ def rollback():
 	# that need to be removed or installed
 	for package in packages:
 		if package.Name in checkpoint.Packages:
-			v = apt_pkg.VersionCompare(package.CurrentVer.VerStr, checkpoint.Packages[package.Name].Version)
-			if v > 0:
-				remove.append(getpackage(package))
-				if package.CurrentState == 6:
-					install.append(checkpoint.Packages[package.Name])
+			if not package.CurrentVer:
+				install.append(checkpoint.Packages[package.Name])
+				print "Package", package.Name, "has no current version"
+			else:
+				v = apt_pkg.VersionCompare(package.CurrentVer.VerStr, checkpoint.Packages[package.Name].Version)
+				if v > 0:
+					remove.append(getpackage(package))
+					if package.CurrentState == 6:
+						install.append(checkpoint.Packages[package.Name])
 		else:
 			if package.CurrentState == 6:
 				remove.append(getpackage(package))
@@ -272,6 +305,10 @@ def main():
 	parser.add_option("-c", "--clean",
 		type="int", dest="clean",
 		help="Erase checkpoints more than n days old")
+	parser.add_option("-v", "--verbose",
+		dest="verbose", action="store_false", default=True,
+		help="Verbose output")
+	
 	(options, args) = parser.parse_args()
 	if len(sys.argv) == 1:
 		parser.print_help()
