@@ -1,0 +1,17 @@
+Source: apt-checkpoint
+Section: admin
+Priority: important
+Maintainer: Adam Israel <adam@battleaxe.net>
+Uploaders: Adam Israel <adam@battleaxe.net>
+Standards-Version: 3.6.1
+Build-Depends: python-apt
+
+Package: apt-checkpoint
+Architecture: any
+Depends: python2.3, python-apt, wget, dpkg 
+Priority: important
+Section: base
+Description: Test description
+ This is Debian's next generation front-end for the dpkg package manager.
+ It provides the apt-get utility and APT dselect method that provides a 
+ simpler, safer way to install and upgrade packages.
