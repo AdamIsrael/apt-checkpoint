@@ -67,6 +67,7 @@ binary-indep: build install
 #	dh_installinit
 #	dh_installcron
 	dh_installman
+	cp docs/apt-checkpoint.1 debian/apt-checkpoint/usr/share/man/man1
 	cp src/apt-checkpoint debian/apt-checkpoint/usr/bin
 #	dh_installinfo
 #	dh_undocumented

@@ -4,3 +4,6 @@
 * Look into archiving of conf files
 * Implement --debug and verbose output
 * Handle packages in alternative, non-official repositories
+* Internationalization
+* Test on multiple platforms (should work fine, but check packaging)
+* Check permissions on create/rollback; requires root privs

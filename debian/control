@@ -7,7 +7,7 @@ Build-Depends: python-apt
 
 Package: apt-checkpoint
 Architecture: any
-Depends: python2.3, python-apt, wget, dpkg 
+Depends: ${python:Depends}, python-apt, wget, dpkg (>= 1.10.21) 
 Priority: important
 Section: admin
 Description: Create, compare, and rollback point-in-time snapshots of a Debian system
