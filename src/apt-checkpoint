@@ -52,19 +52,14 @@ def diff():
 
 	# default to the most recent checkpoint
 	checkpoint = pickle.load(open(CACHE + os.sep + checkpoints[len(checkpoints)-1]))
-	print checkpoint
-	print len(checkpoint.Packages)
 	for package in packages:
 		versions = package.VersionList
 		if package.Name in checkpoint.Packages and package.CurrentState != 6:
 			print "Package found in checkpoint but not installed: ", package.Name
-			for pkg in versions:
-				print pkg.VerStr
-				print checkpoint.Packages[package.Name].Version
 		elif package.CurrentState == 6 and package.Name not in checkpoint.Packages:
 			print "Package not found in checkpoint but installed: ", package.Name
 		elif package.CurrentState == 6 and package.Name in checkpoint.Packages:
-			v = apt_pkg.VersionCompare(versions[0].VerStr, checkpoint.Packages[package.Name].Version)
+			v = apt_pkg.VersionCompare(package.CurrentVer.VerStr, checkpoint.Packages[package.Name].Version)
 			if v == 1:
 				print "%s: Version differs(%s -> %s)" % (package.Name, checkpoint.Packages[package.Name].Version, versions[0].VerStr)	
 	pass
@@ -80,7 +75,12 @@ def create():
 		versions = package.VersionList
 		if not versions:
 			continue
-		if package.CurrentVer:
+		if package.CurrentVer and package.CurrentState == 6:
+			if len(versions) > 1 and package.Name == 'apt':
+				print package.Name
+				print package.CurrentVer
+				#for version in versions:
+				#	print version
 			records.Lookup(versions[0].FileList[0])
 			p = Package()
 			p.Name = package.Name
@@ -103,26 +103,22 @@ def rollback():
 	install = False
 	remove = False
 	checkpoint = pickle.load(open(CACHE + os.sep + checkpoints[len(checkpoints)-1]))
+	print len(checkpoint.Packages), "packages"
 	for package in packages:
 		install = False
 		remove = False
-		versions = package.VersionList
-		if package.Name in checkpoint.Packages and package.CurrentState != 6:
-			# Install new package
-			install = True
-			remove = False
-		elif package.CurrentState == 6 and package.Name not in checkpoint.Packages:
-			# Remove package
-			remove = True
-			install = False
-		elif package.CurrentState == 6 and package.Name in checkpoint.Packages:
-			v = apt_pkg.VersionCompare(versions[0].VerStr, checkpoint.Packages[package.Name].Version)
-			if v == 1:
-				# Remove current package *AND* install checkpointed package
-				install = True
-				remove = True
+		if package.Name in checkpoint.Packages:
+			v = apt_pkg.VersionCompare(package.CurrentVer.VerStr, checkpoint.Packages[package.Name].Version)
+			if v > 0:
+				if package.CurrentState == 6:
+					print "Downgrade package", package.Name
+					install = True
+					remove = True
+				else:
+					install = False
+					remove = True
+					print "Remove package", package.Name
 		if (install or remove) and package.Name in checkpoint.Packages:
-			print "Install"
 			pkg = checkpoint.Packages[package.Name]
 			deb = ''
 		
@@ -133,12 +129,16 @@ def rollback():
 					deb = ''
 			# Next, check for apt-mirror
 			# Last, download the needed packages from snapshot.debian.net
-			# Remove the current package
-			if remove:
-				print commands.getoutput('dpkg --force-depends --force-downgrade -r %s' % (pkg.Name))
-			# Install the checkpointed package
-			if install and len(deb) > 0:
-				print commands.getoutput('dpkg -i %s' % (deb))
+		
+			if len(deb) > 0:
+				# Remove the current package
+				if remove:
+					print "Remove:", pkg.Name
+					print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r %s' % (pkg.Name))
+				# Install the checkpointed package
+				if install and len(deb) > 0:
+					print "Install:", pkg.Name
+					print commands.getoutput('dpkg -i %s' % (deb))
 		pass
 def view():
 	checkpoints = getCheckpoints()
