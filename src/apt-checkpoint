@@ -88,12 +88,45 @@ class Package:
 	def __init__(self):
 		pass
 
+# From the department of redundancy department...
+# Make our Package object from apt_pkg's Package object
+def getpackage(package):
+	global cache
+	records = apt_pkg.GetPkgRecords(cache)
+	records.Lookup(package.CurrentVer.FileList[0])
+	p = Package()
+	p.Name = package.Name
+	p.Version = package.CurrentVer.VerStr
+	p.State = package.CurrentState
+	p.FileName = records.FileName
+	return p
+
+# Find the .deb belonging to this package
+def findpackage(pkg):
+	deb = ''
+	if len(pkg.FileName) > 0:
+		print pkg.FileName
+		# First, check to see if the package is in the local archive
+		deb = ARCHIVE + os.sep + pkg.FileName.split('/')[-1:][0]
+		if(not os.path.exists(deb)):
+			deb = ''
+		# Next, check for apt-mirror
+		# Last, download the needed packages from snapshot.debian.net
+		# Download Packages.gz
+		print pkg.FileName
+
+	pass
+
+def removepackage(pkg):
+	print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r %s' % (pkg.Name))
+def installpackage(deb):
+	print commands.getoutput('dpkg -i %s' % (deb))
+
 def initialize():
 	global cache, packages
 	apt_pkg.init()
 	cache = apt_pkg.GetCache()
 	packages = cache.Packages
-
 	if not os.path.exists(CACHE):
 		os.mkdir(CACHE)
 
@@ -143,13 +176,7 @@ def create():
 		#if not versions:
 		#	continue
 		if package.CurrentVer and package.CurrentState == 6:
-			#records.Lookup(versions[0].FileList[0])
-			records.Lookup(package.CurrentVer.FileList[0])
-			p = Package()
-			p.Name = package.Name
-			p.Version = package.CurrentVer.VerStr
-			p.State = package.CurrentState
-			p.FileName = records.FileName
+			p = getpackage(package)
 			cp.Packages[package.Name] = p
 	if cp.Packages:
 		cp.Description = options.description
@@ -163,47 +190,37 @@ def rollback():
 	global packages
 	initialize()
 	checkpoints = getCheckpoints()
-	install = False
-	remove = False
+	
+	remove = []		# Packages to be removed
+	install = []	# Packages to be installed
+	
 	checkpoint = pickle.load(open(CACHE + os.sep + checkpoints[len(checkpoints)-1]))
-	print len(checkpoint.Packages), "packages"
+	print 'Comparing', len(checkpoint.Packages), 'out of', len(packages), 'packages'
+
+	# Iterate through the list of all packages and make a list packages
+	# that need to be removed or installed
 	for package in packages:
-		install = False
-		remove = False
 		if package.Name in checkpoint.Packages:
 			v = apt_pkg.VersionCompare(package.CurrentVer.VerStr, checkpoint.Packages[package.Name].Version)
 			if v > 0:
+				remove.append(getpackage(package))
 				if package.CurrentState == 6:
-					print "Downgrade package", package.Name
-					install = True
-					remove = True
-				else:
-					install = False
-					remove = True
-					print "Remove package", package.Name
-		if (install or remove) and package.Name in checkpoint.Packages:
-			pkg = checkpoint.Packages[package.Name]
-			print pkg
-			deb = ''
-			if len(pkg.FileName) > 0:
-				print pkg.FileName
-				# First, check to see if the package is in the local archive
-				deb = ARCHIVE + os.sep + pkg.FileName.split('/')[-1:][0]
-				if(not os.path.exists(deb)):
-					deb = ''
-			# Next, check for apt-mirror
-			# Last, download the needed packages from snapshot.debian.net
-			# Download Packages.gz
-			if len(deb) > 0:
-				# Remove the current package
-				if remove:
-					print "Remove:", pkg.Name
-					#print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r %s' % (pkg.Name))
-				# Install the checkpointed package
-				if install and len(deb) > 0:
-					print "Install:", pkg.Name
-					#print commands.getoutput('dpkg -i %s' % (deb))
-		pass
+					install.append(checkpoint.Packages[package.Name])
+		else:
+			if package.CurrentState == 6:
+				remove.append(getpackage(package))
+	print len(remove), "packages to be removed"
+	print len(install), "packages to be installed"
+
+	for package in remove:
+		removepackage(package)
+	for package in install:
+		installpackage(findpackage(package))
+	return
+#					#
+	pass
+
+
 def view():
 	checkpoints = getCheckpoints()
 	count = 1
@@ -255,7 +272,6 @@ def main():
 	parser.add_option("-c", "--clean",
 		type="int", dest="clean",
 		help="Erase checkpoints more than n days old")
-		
 	(options, args) = parser.parse_args()
 	if len(sys.argv) == 1:
 		parser.print_help()
