@@ -6,6 +6,8 @@ from datetime import datetime
 import time, locale
 from optparse import OptionParser	# To handle command line args
 import gzip 						# To read Packages.gz
+import httplib, urlparse			# To download files
+import tempfile						# To handle temp files
 
 # Configuration Settings
 CACHE = '/var/cache/apt/checkpoint'
@@ -68,13 +70,11 @@ class PackagesGz:
 				pass
 			else:
 				record += line + '\n'
-		print len(Packages), 'packages read'
 		return Packages
 
 
 		
 class Checkpoint:
-	Date = None
 	Description = None
 	Packages = {}
 	def __init__(self):
@@ -97,6 +97,16 @@ def initialize():
 	if not os.path.exists(CACHE):
 		os.mkdir(CACHE)
 
+def HttpDownload(url):
+	data = ''
+	u = urlparse.urlparse(url)	
+	conn = httplib.HTTPConnection(u[1])
+	conn.request('GET', u[2])
+	resp = conn.getresponse()
+	if resp.Status == 200:
+		data = resp.read()
+	return data
+	
 # Get a list of available checkpoints in the CACHE
 def getCheckpoints():
 	checkpoints = os.listdir(CACHE)
@@ -173,25 +183,26 @@ def rollback():
 					print "Remove package", package.Name
 		if (install or remove) and package.Name in checkpoint.Packages:
 			pkg = checkpoint.Packages[package.Name]
+			print pkg
 			deb = ''
-		
 			if len(pkg.FileName) > 0:
+				print pkg.FileName
 				# First, check to see if the package is in the local archive
 				deb = ARCHIVE + os.sep + pkg.FileName.split('/')[-1:][0]
 				if(not os.path.exists(deb)):
 					deb = ''
 			# Next, check for apt-mirror
 			# Last, download the needed packages from snapshot.debian.net
-		
+			# Download Packages.gz
 			if len(deb) > 0:
 				# Remove the current package
 				if remove:
 					print "Remove:", pkg.Name
-					print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r %s' % (pkg.Name))
+					#print commands.getoutput('dpkg --force-depends,downgrade,depends-version -r %s' % (pkg.Name))
 				# Install the checkpointed package
 				if install and len(deb) > 0:
 					print "Install:", pkg.Name
-					print commands.getoutput('dpkg -i %s' % (deb))
+					#print commands.getoutput('dpkg -i %s' % (deb))
 		pass
 def view():
 	checkpoints = getCheckpoints()
