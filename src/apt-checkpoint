@@ -1,4 +1,4 @@
-#!/usr/bin/python
+e#!/usr/bin/python
 import apt_pkg						# Our interface to local packages
 import pickle						# Object serialization
 import os, sys, commands
@@ -305,7 +305,7 @@ def main():
 	parser.add_option("-c", "--clean",
 		type="int", dest="clean",
 		help="Erase checkpoints more than n days old")
-	parser.add_option("-v", "--version",
+	parser.add_option("-V", "--version",
 		dest="version", action="store_true", default=False,
 		help="Display version")
 	
@@ -324,6 +324,3 @@ def main():
 
 if __name__ == "__main__":
 	main()
-
-
-
