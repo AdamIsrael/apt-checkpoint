@@ -1,0 +1,28 @@
+The idea behind apt-checkpoint/apt-rollback is to create a point-in-time snapshot of all installed packages, including a hard link to the original archive, if available.  In the case of a system failure, an apt-checkpoint rollback or apt-rollback could then be run, to restore the system to a known working order.
+
+See snapshot.debian.net as a potential way of grabbing packages to be rolled back. (thanks harshy)
+
+apt-checkpoint
+apt-diff
+apt-rollback
+apt-clone?
+
+Store checkpoint files in:
+ /var/cache/apt/checkpoint/
+
+Filename:
+  Unix timestamp of when the checkpoint was created
+? gzip the checkpoint to save space?
+Checkpoint:
+  All package states (installed, uninstalled, etc)
+  Timestamp (YYYY/MM/DD)
+  
+  Package Name
+  Package Version
+  Timestamp
+  
+Flow:
+	Get list of currently installed packages
+	Save current date
+
+  

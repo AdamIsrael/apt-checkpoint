@@ -1,0 +1,196 @@
+#!/usr/bin/python
+import apt_pkg
+import pickle
+import os, sys, commands
+from datetime import datetime
+import time, locale
+from optparse import OptionParser
+
+# Configuration Settings
+CACHE = '/var/cache/apt/checkpoint'
+ARCHIVE = '/var/cache/apt/archives'
+
+
+# Internal objects
+cache = None
+packages = None
+parser = None
+options = None
+
+class Checkpoint:
+	Description = None
+	Packages = {}
+	def __init__(self):
+		pass
+
+class Package:
+	Version = None
+	Name = None
+	State = None
+	FileName = None
+	def __init__(self):
+		pass
+
+def initialize():
+	global cache, packages
+	apt_pkg.init()
+	cache = apt_pkg.GetCache()
+	packages = cache.Packages
+
+	if not os.path.exists(CACHE):
+		os.mkdir(CACHE)
+
+# Get a list of available checkpoints in the CACHE
+def getCheckpoints():
+	checkpoints = os.listdir(CACHE)
+	return checkpoints
+
+def diff():
+	global packages
+	initialize()
+	checkpoints = getCheckpoints()
+
+	# default to the most recent checkpoint
+	checkpoint = pickle.load(open(CACHE + os.sep + checkpoints[len(checkpoints)-1]))
+	print checkpoint
+	print len(checkpoint.Packages)
+	for package in packages:
+		versions = package.VersionList
+		if package.Name in checkpoint.Packages and package.CurrentState != 6:
+			print "Package found in checkpoint but not installed: ", package.Name
+			for pkg in versions:
+				print pkg.VerStr
+				print checkpoint.Packages[package.Name].Version
+		elif package.CurrentState == 6 and package.Name not in checkpoint.Packages:
+			print "Package not found in checkpoint but installed: ", package.Name
+		elif package.CurrentState == 6 and package.Name in checkpoint.Packages:
+			v = apt_pkg.VersionCompare(versions[0].VerStr, checkpoint.Packages[package.Name].Version)
+			if v == 1:
+				print "%s: Version differs(%s -> %s)" % (package.Name, checkpoint.Packages[package.Name].Version, versions[0].VerStr)	
+	pass
+
+
+def create():
+	global cache
+	initialize()
+	cp = Checkpoint()
+	cp.Packages = {}
+	records = apt_pkg.GetPkgRecords(cache)
+	for package in packages:
+		versions = package.VersionList
+		if not versions:
+			continue
+		if package.CurrentVer:
+			records.Lookup(versions[0].FileList[0])
+			p = Package()
+			p.Name = package.Name
+			p.Version = package.CurrentVer.VerStr
+			p.State = package.CurrentState
+			p.FileName = records.FileName
+			cp.Packages[package.Name] = p
+	if cp.Packages:
+		cp.Description = options.description
+		print len(cp.Packages), "installed packages"
+		chkpt = CACHE + os.sep + time.strftime('%Y-%m-%d-%H-%M') + '.bin'
+		print chkpt
+		pickle.dump(cp, open(chkpt, 'w'))
+
+	pass
+def rollback():
+	global packages
+	initialize()
+	checkpoints = getCheckpoints()
+	install = False
+	remove = False
+	checkpoint = pickle.load(open(CACHE + os.sep + checkpoints[len(checkpoints)-1]))
+	for package in packages:
+		install = False
+		remove = False
+		versions = package.VersionList
+		if package.Name in checkpoint.Packages and package.CurrentState != 6:
+			# Install new package
+			install = True
+			remove = False
+		elif package.CurrentState == 6 and package.Name not in checkpoint.Packages:
+			# Remove package
+			remove = True
+			install = False
+		elif package.CurrentState == 6 and package.Name in checkpoint.Packages:
+			v = apt_pkg.VersionCompare(versions[0].VerStr, checkpoint.Packages[package.Name].Version)
+			if v == 1:
+				# Remove current package *AND* install checkpointed package
+				install = True
+				remove = True
+		if (install or remove) and package.Name in checkpoint.Packages:
+			print "Install"
+			pkg = checkpoint.Packages[package.Name]
+			deb = ''
+		
+			if len(pkg.FileName) > 0:
+				# First, check to see if the package is in the local archive
+				deb = ARCHIVE + os.sep + pkg.FileName.split('/')[-1:][0]
+				if(not os.path.exists(deb)):
+					deb = ''
+			# Next, check for apt-mirror
+			# Last, download the needed packages from snapshot.debian.net
+			# Remove the current package
+			if remove:
+				print commands.getoutput('dpkg --force-depends --force-downgrade -r %s' % (pkg.Name))
+			# Install the checkpointed package
+			if install and len(deb) > 0:
+				print commands.getoutput('dpkg -i %s' % (deb))
+		pass
+def view():
+	checkpoints = getCheckpoints()
+	count = 1
+	for checkpoint in checkpoints:
+		chk = pickle.load(open(CACHE + os.sep + checkpoint))
+		t = time.strptime(checkpoint.split('.')[0], '%Y-%m-%d-%H-%M')
+		print '[' + str(count) + '] ',time.strftime(locale.nl_langinfo(locale.D_T_FMT), t), '[' + chk.Description + ']'
+		count += 1
+	pass
+
+def Help():
+	usage = """	%prog [options] command
+	%prog [options] create
+	%prog [options] diff
+	%prog [options] rollback
+	%prog [options] view
+	
+apt-checkpoint is a simple command line interface for saving and
+restoring package checkpoints.  The most frequently used commands
+are create, diff, and rollback.
+
+commands:
+    create - Create a checkpoint of the current system
+    diff - View the difference between the current and checkpointed system
+    rollback - Restore the system to it's previously saved state
+    view - View saved checkpoints
+	"""
+	return usage
+
+def main():	
+	global parser, options
+	parser = OptionParser(Help())
+	parser.add_option("-d", "--description",
+					dest="description",
+					help="Checkpoint description")
+	
+	(options, args) = parser.parse_args()
+	if len(sys.argv) == 1:
+		parser.print_help()
+		return 0
+		
+	command = sys.argv[1]
+	if command in ['create', 'diff', 'rollback', 'view']:
+		exec(command + "()")
+		pass
+	else:
+		parser.print_help()
+	return 0
+
+if __name__ == "__main__":
+	main()
+
+
+

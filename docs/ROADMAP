@@ -1,0 +1,10 @@
+apt-checkpoint roadmap
+
+Adopt even/odd point releases, ala Linux
+
+-------------------------------------------------------
+| VERSION | Description			| Target Date |
+-------------------------------------------------------
+  0.1	    Core functionality		  5-15-2004
+  0.2	    Core functionality		  5-30-2004
+
