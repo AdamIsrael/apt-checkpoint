@@ -7,3 +7,4 @@
 * Internationalization
 * Test on multiple platforms (should work fine, but check packaging)
 * Check permissions on create/rollback; requires root privs
+* Sort removable package by dependancy, so if the user cancels, they aren't left with a broken system.

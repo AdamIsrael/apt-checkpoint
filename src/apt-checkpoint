@@ -308,7 +308,9 @@ def main():
 	parser.add_option("-V", "--version",
 		dest="version", action="store_true", default=False,
 		help="Display version")
-	
+	parser.add_option("-v", "--verbose",
+		dest="verbose", action="store_true", default=False,
+		help="Verbosity")
 	(options, args) = parser.parse_args()
 	if len(sys.argv) == 1:
 		parser.print_help()
