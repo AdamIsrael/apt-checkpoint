@@ -175,7 +175,10 @@ def main():
 	parser.add_option("-d", "--description",
 					dest="description",
 					help="Checkpoint description")
-	
+	parser.add_option("-c", "--clean",
+		type="int", dest="clean",
+		help="Erase checkpoints more than n days old")
+		
 	(options, args) = parser.parse_args()
 	if len(sys.argv) == 1:
 		parser.print_help()
