@@ -1,0 +1,6 @@
+* Implement --clean
+* Implement --version
+* Allow rollback for any previous checkpoint, not just the last one
+* Look into archiving of conf files
+* Implement --debug and verbose output
+* Handle packages in alternative, non-official repositories

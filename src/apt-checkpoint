@@ -305,9 +305,9 @@ def main():
 	parser.add_option("-c", "--clean",
 		type="int", dest="clean",
 		help="Erase checkpoints more than n days old")
-	parser.add_option("-v", "--verbose",
-		dest="verbose", action="store_false", default=True,
-		help="Verbose output")
+	parser.add_option("-v", "--version",
+		dest="version", action="store_true", default=False,
+		help="Display version")
 	
 	(options, args) = parser.parse_args()
 	if len(sys.argv) == 1:

@@ -1,0 +1,14 @@
+****************************
+*** USE AT YOUR OWN RISK ***
+****************************
+
+apt-checkpoint is extremely experimental.  It is liable to break, maim, and otherwise destroy your working system.  If you aren't comfortable with dpkg and don't want to break your system, wait for a stable release.
+
+If you're comfortable enough to give apt-checkpoint a try, here are a few gotchas:
+
+* Handling of packages in alternative, non-official repositories is ugly.  A rollback may leave these packages uninstalled.
+
+* There is a lot of extra output.  Eventually this verbosity will be handled by --debug.
+
+* Report bugs!  Checkpoints are stored in /var/cache/apt/checkpoint/ and are timestamped.
+

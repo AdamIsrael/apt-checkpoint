@@ -50,8 +50,7 @@ install: build
 
 # Build architecture-independent files here.
 binary-arch: build install
-# We have nothing to do by default.
-	
+# We have nothing to do by default.	
 
 # Build architecture-dependent files here.
 binary-indep: build install
