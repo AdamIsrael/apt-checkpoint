@@ -1,15 +1,16 @@
 #!/usr/bin/python
-import apt_pkg
-import pickle
+import apt_pkg						# Our interface to local packages
+import pickle						# Object serialization
 import os, sys, commands
-from datetime import datetime
+from datetime import datetime		
 import time, locale
-from optparse import OptionParser
+from optparse import OptionParser	# To handle command line args
+import gzip 						# To read Packages.gz
 
 # Configuration Settings
 CACHE = '/var/cache/apt/checkpoint'
 ARCHIVE = '/var/cache/apt/archives'
-
+SNAPSHOT = 'http://snapshot.debian.net/archive/'
 
 # Internal objects
 cache = None
@@ -17,7 +18,63 @@ packages = None
 parser = None
 options = None
 
+class PackagesGz:
+	Packages = []
+	def __init__(self, file):
+		self.Packages = self.parse(string.join(gzip.open(file)))
+		pass
+	def parse(self,source):
+		# Parse the Packages.gz source into a hash table
+		# Packages are seperated by \n\n
+		# Each package record is <key>: <value>
+		Packages = []
+		Package = {}
+		record = ''
+		# Buffer one record at a time, then parse it
+		for line in source.split('\n'):
+			if len(line.strip()) == 0:
+				# We have a `record`, with pairs of fields (key, value)
+				# `key` is start of line up to the first colon `:`
+				# `value` is everything from the `:` until the next line
+				# containing a `:` (multi-line values)
+				key = ''
+				value = ''
+				while(len(record) > 0):
+					if len(key) == 0:
+						idx = record.find(':')
+						if idx >= 0:
+							key = record[0:idx]
+							record = record[idx+1:]
+					else:
+						if len(value) > 0:
+							if (record.find(':') >= 0 and record.find(':') < record.find('\n')):
+								# done with this key:value pair
+								Package[key] = value
+								key = ''
+								value = ''
+								continue
+						idx = record.find('\n')
+						if idx >= 0:
+							value += record[0:idx]
+							record = record[idx+1:]
+							if len(record) == 0:
+								# Last key:value pair of record
+								Package[key] = value
+								key = ''
+								value = ''
+								Packages.append(Package)
+								Package = {}
+				record = ''
+				pass
+			else:
+				record += line + '\n'
+		print len(Packages), 'packages read'
+		return Packages
+
+
+		
 class Checkpoint:
+	Date = None
 	Description = None
 	Packages = {}
 	def __init__(self):
@@ -72,16 +129,12 @@ def create():
 	cp.Packages = {}
 	records = apt_pkg.GetPkgRecords(cache)
 	for package in packages:
-		versions = package.VersionList
-		if not versions:
-			continue
+		#versions = package.VersionList
+		#if not versions:
+		#	continue
 		if package.CurrentVer and package.CurrentState == 6:
-			if len(versions) > 1 and package.Name == 'apt':
-				print package.Name
-				print package.CurrentVer
-				#for version in versions:
-				#	print version
-			records.Lookup(versions[0].FileList[0])
+			#records.Lookup(versions[0].FileList[0])
+			records.Lookup(package.CurrentVer.FileList[0])
 			p = Package()
 			p.Name = package.Name
 			p.Version = package.CurrentVer.VerStr
@@ -169,6 +222,19 @@ commands:
 	"""
 	return usage
 
+
+def CachePackage(pkg):
+	# Download a package and cache it locally
+	
+	# Get Releases.gz from snapshot.debian.net
+
+	# Find package record matching this package
+
+	# Download package to local archive
+
+	
+	pass
+	
 def main():	
 	global parser, options
 	parser = OptionParser(Help())
